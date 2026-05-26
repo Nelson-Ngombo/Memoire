@@ -1,0 +1,36 @@
+<productinfo>
+
+<matlabrelease>12</matlabrelease>
+<name>Frequency Domain System Identification Toolbox</name>
+<area>matlab</area>
+<icon>$toolbox/matlab/general/matlabicon.gif</icon>
+
+<list>
+
+<listitem>
+<label>Help</label>
+<callback>doc fdident</callback>
+<icon>$toolbox/matlab/general/bookicon.gif</icon>
+</listitem>
+
+<listitem>
+<label>Demos</label>
+<callback>demo toolbox Fdident</callback>
+<icon>$toolbox/matlab/general/demoicon.gif</icon>
+</listitem>
+
+<listitem>
+<label>Frequency Domain System Identification Tool (FDTool)</label>
+<callback>fdtool</callback>
+<icon>$toolbox/matlab/general/figureicon.gif</icon>
+</listitem>
+
+<listitem>
+<label>Product Page (Web)</label>
+<callback>web http://elecwww.vub.ac.be/fdident/ -browser;</callback>
+<icon>$toolbox/matlab/general/webicon.gif</icon>
+</listitem>
+
+</list>
+
+</productinfo>

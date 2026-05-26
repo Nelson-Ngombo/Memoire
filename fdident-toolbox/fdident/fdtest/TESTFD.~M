@@ -1,0 +1,504 @@
+function test=testfd(emode,point)
+%TESTFD Test of the function m-files of the FDIDENT Toolbox
+%       Frequency Domain System Identification Toolbox
+
+%       Copyright (c) I. Kollar and Vrije Universiteit Brussel, ELEC, 1991-2005
+%       All rights reserved.
+%       $Revision: $
+%       Last modified: 13-Mar-2005
+
+echo off
+ds=dbstack; n=ds(1).name; disp(['File ',n])
+ind=find(n==filesep); if ~isempty(ind), name=n(ind(end)+1:end-2); else name=n; end
+try, close all force, catch, pause(1), close all force, end
+set(gcf,'name',name), clear ds n ind name
+global elis_max_iteration_number
+elis_max_iteration_number=2;
+global msinclip_max_iteration_number
+msinclip_max_iteration_number=10;%
+global dibs_trialno
+dibs_trialno=2;
+%We distinguish between Build and Test and Istvan's test by nargout>0 or ==0
+Build_and_test=(nargout>0);
+%clear all %for script only
+clc, echo off
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%Build and test sequence
+lasterr('');
+if Build_and_test
+  errortrap on
+  testtime=clock;
+  %Added so that Build and test could save files for this test
+  hold_return_path=pwd;
+  path(hold_return_path,path);
+  cd(tempdir);
+else
+  p=path;
+  %if findstr(p,'mfiles')&findstr(p,'fddemosn'), rmpathfr('fddemosn'), end
+end
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+cl0=clock;
+rand('seed',0); randn('seed',0)
+disp(' '), disp('Workspace has been cleared')
+global yesinpacceptdef
+if (nargout==0)&exist('fdtest.mat')
+  %If this file exists, questions will be posed
+  pause on
+  yesinpacceptdef='no!'; testfdmakediary='y'; testfdsavegraph='n';
+else %fully automatic test run
+  pause off
+  yesinpacceptdef='yes'; testfdmakediary='y'; testfdsavegraph='n';
+end
+clc
+mesg=str2mat('This is a test suite for checking the basic functions of the',...
+'      Frequency Domain System Identification Toolbox',...
+'Each routine is invoked using a typical input argument setting, possibly',...
+'with short run times. Where it is possible and reasonable, the numerical',...
+'results are checked automatically. Some of the results can also be checked',...
+'in plots.',...
+'The tests run fully automatically, with no diary or hardcopies, unless',...
+'the file ''fdtest.mat'' exists: in this case some questions concerning the');
+mesg=str2mat(mesg,...
+'running mode of the tests will be posed:',...
+'    1. It may be decided whether or not the making of a diary in the',...
+'file named the value of diaryfdt_name during the time of the tests is',...
+'to be made.',...
+['    2. Graphs can be saved to files, and/or printed by a printing ',...
+'statement'],...
+['at given points of the program, by answering ''y'' to the relevant ',...
+'question.'],...
+'    3. The tests may stop at possibilities for graphics comparisons, if',...
+'the question ''Stop at graphs?'' is answered by ''y''.');
+mesg=str2mat(mesg,...
+'    4. There are question/answer points, too: the default answers are',...
+['automatically accepted unless for ''Stop at questions?'' ''y'' is ',...
+'answered.'],...
+'    As a last step, fdiddemo is invoked, performing the demonstrations;',...
+'for this step the installation of the demonstration files is required.',...
+'    Should you have any problems with the test files, please contact',...
+'the developers at the email address: fdident@vub.ac.be');
+disp(mesg), clear mesg
+clf, hold off
+fprintf('Press a key to continue...'), pause, disp(' ')
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+vers=version;
+if strncmp(version,'6.0',3)&any(findstr(version,'Beta 4')), v6beta4=1;
+else v6beta4=0;
+end
+%
+disp(' '), disp(['This is Matlab version ',vers,' on platform ',computer])
+%Switch diary on, set automatic running and saving/printing of graphs
+clf, hold off, pause off
+%
+testfdmakediary=yesinput('Make diary of tests in file, y or n',...
+        testfdmakediary,'y|n');
+if strcmp(testfdmakediary,'y')
+  %diaryfdt_name='diaryfdt';
+  if ~exist('corrtest.m') %MathWorks
+    diaryfdt_name=['testfd-',vers(1:3),'-mw.diary'];
+    disp('Distributed version of the toolbox without corrtest')
+  else %normal
+    diaryfdt_name=['testfd-',vers(1:3),'-own.diary'];
+    disp('Development version of the toolbox with corrtest')
+  end
+  diaryfdt_name=yesinput('Name of diary file',diaryfdt_name);
+  if isempty(diaryfdt_name), diaryfdt_name='testfd.diary'; end
+  diary off
+  if exist(diaryfdt_name), delete(diaryfdt_name), end
+  disp(' ')
+  diary(diaryfdt_name)
+  fprintf('Diary is generated during the run of testfd.\n')
+  fprintf(['Diary file name: ',diaryfdt_name,', date and time: ',date,...
+        ', %.0f:%.0f:%.0f\n'],cl0(4),cl0(5),cl0(6))
+end
+%
+testsavegraphst=''; demosavegraphst='';
+testfdsavegraph=yesinput('Save graphs to file, y or n',testfdsavegraph,'y|n');
+if strcmp(testfdsavegraph,'y')
+  if ~exist('gropt'), gropt='ps'; end
+  if isempty(gropt), gropt='ps'; end
+  gropt=yesinput('File format: ps,ps2,psc,psc2, see print',gropt,...
+        'ps|ps2|psc|psc2');
+  if exist('fdtest.ps'), delete fdtest.ps, end
+  testsavegraphst=['disp(''Save graph to file fdtest.ps''), ',...
+        'print -d',gropt,' -append fdtest.ps']; %save statement
+  if exist('fddemo.ps'), delete fddemo.ps, end
+  demosavegraphst=['disp(''Save graph to file fddemo.ps''), ',...
+        'print -d',gropt,' -append fddemo.ps']; %save statement
+end
+%
+compcode=computer; if length(compcode)<3, compcode=[compcode,' ']; end
+testfdprintgraph=yesinput('Print graphs automatically, y or n','n','y|n');
+if strcmp(testfdprintgraph,'y')
+  if isempty(testsavegraphst)
+    testsavegraphst='disp(''Printing graph ...'')';
+    demosavegraphst='disp(''Printing graph ...'')';
+  end
+  [pcmd,dev]=printopt;
+  if strcmp(compcode(1:3),'MAC') %Macintosh
+    disp('There is no way at the moment to print graphs from an M-file')
+    disp('one by one on a Mac, they can only be saved into files.')
+    prtscst='';
+  else
+    prtscst=['print ',dev,' tmp.ps, ','!',pcmd, ' tmp.ps'];
+  end
+  clear pcmd dev
+  prtscst=yesinput('Printing statement',prtscst);
+  testsavegraphst=[testsavegraphst,', ',prtscst];
+  demosavegraphst=[demosavegraphst,', ',prtscst];
+end
+%Examples for manually set graph save statements:
+%testsavegraphst=['print -d',gropt,' -append fdtest.ps']; %save statement
+%testsavegraphst='print -dps -append fdtest.ps'; %save statement
+%testsavegraphst='meta fdtest.met';
+%demosavegraphst=['print -d',gropt,' -append fddemo.ps']; %save statement
+%demosavegraphst='print -dps -append fddemo.ps'; %save statement
+%demosavegraphst='meta fddemo.met';
+%
+stopatgraphs=yesinput('Stop at graphs, y or n','n','y|n');
+stopatquestions=yesinput('Stop at questions, y or n','n','y|n');
+skiphelistst='n';
+if strcmp(vers(1:3),'4.0'), skiphelistst='y'; end
+skiphelistst=yesinput('Skip helistst',skiphelistst,'n|y');
+skipredef='n';
+skipredef=yesinput('Skip help, exist, and redef tests, y/n',skipredef,'n|y');
+%
+if strcmp(stopatgraphs,'n')
+  pause off, disp('pause off')
+else
+  pause on, disp('pause on')
+end
+fprintf('\nget(0,''ScreenDepth'') = %.0f\n',get(0,'ScreenDepth'))
+if strcmp(stopatquestions,'n')
+  yesinpacceptdef='yes'; %accept default answers
+end
+clear stopatgraphs stopatquestions
+if length(testsavegraphst)>34, crstr='\n   '; else crstr=''; end
+fprintf(['\nStatement for saving/printing of test graphs: ',crstr,'''',...
+        testsavegraphst,'''\n'])
+fprintf(['Statement for saving/printing of demo graphs: ',crstr,'''',...
+        demosavegraphst,'''\n'])
+clear crstr
+if ~Build_and_test %this means Istvan's test sequence
+  dbstop if error %stop on error for Istvan's test
+  %dbclear if error
+end
+%
+%End of preparation for automatic running
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+disp(' ')
+disp(['Computer type: ',compcode])
+if strcmp(compcode(1:2),'PC')&~strcmp(vers(1:3),'4.0')
+  system_dependent(7,'on') %Window buffering enabled
+end
+ver
+fprintf('Press a key to continue...'), pause, disp(' '), disp(' '), clc
+disp(['Working directory: ',pwd])
+if strcmp(compcode(1:3),'SUN')|strcmp(compcode(1:3),'SOL')
+  %[x,y]=unix('finger; ps -aux'); disp(y) %OS4
+  %[x,y]=unix('finger; ps -ax'); disp(y) %OS4
+  [x,y]=unix('finger'); disp(y) %Solaris
+  [x,y]=unix('ps -A -f | grep -v root'); disp(y) %Solaris
+end
+fprintf('Press a key to continue...'), pause, disp(' '), disp(' '), clc
+%
+if strcmp(testfdsavegraph,'y')
+  clf, grid off
+  text(0.1,0.6,sprintf(['Version: ',version]),'verticalalignment','bottom')
+  text(0.1,0.55,sprintf(['Computer: ',computer]),'verticalalignment','bottom')
+  text(0.1,0.50,sprintf(['Date and time: ',date,', %.0f:%.0f:%.0f'],...
+        cl0(4),cl0(5),cl0(6)),'verticalalignment','bottom')
+  diaryfdt_name45=diaryfdt_name;
+  if vers(1)>4
+    ind=find(diaryfdt_name=='_');
+    if ~isempty(ind)
+      diaryfdt_name45=[diaryfdt_name(1:ind(1)-1),'\\',...
+        diaryfdt_name(ind(1):length(diaryfdt_name))];
+    end
+  end
+  text(0.1,0.45,sprintf(['Diary file: ',diaryfdt_name45,' in ',pwd]),...
+        'verticalalignment','bottom')
+  text(0.1,0.40,sprintf(['TerminalProtocol: ',get(0,'TerminalProtocol')]),...
+        'verticalalignment','bottom')
+  txtps=text(0.1,0.35,'Graphics file: fdtest.ps','verticalalignment','bottom');
+  eval(testsavegraphst)
+  delete(txtps)
+  txtps=text(0.1,0.35,'Graphics file: fddemo.ps','verticalalignment','bottom');
+  eval(demosavegraphst)
+end
+%
+exhyiad=exist('yesinpacceptdef');
+if exhyiad~=1, yesinpacceptdef=''; end, clear exhyiad
+yiadsave=yesinpacceptdef;
+global pairsmessages
+pairsmessages='';
+if strcmp(get(0,'diary'),'on'), diary off, diary on, end
+%
+%if 1==2 %switch off part of run
+%
+path
+vers=version
+%
+if ~Build_and_test %only in Istvan's test
+  if exist('tvalchk')
+    %Use the standard Build and test files with tvalchk
+    eval('tfdfiles') %eval: hide internal calls
+    eval('tfdhelp')
+  else
+    if ~exist('tvalchk')&(vers(1)>='5')
+     %disp('WARNING! Cannot evaluate test sequences: tvalchk.m is missing')
+    end
+    if (skipredef=='n')
+      if exist('fdunique.m')&~fdunique, error('File repetition found'), end
+      hfdexist
+      if exist('hfdhelps.m')&~v6beta4
+        %Skip test of all helps in R12 (V6.0) beta tests
+        hfdhelps
+      end
+      if exist('usage.m'), hfdusage, end
+      if exist('hloadmat.m')%&~any(findstr(lower(vers),'beta'))
+        %Skip test of all MAT-files in R12 (V6.0) beta tests
+        hloadmat
+      end
+      %hecmptst %this is quite a long run!
+      if exist('hesyntax.m'), hesyntax, end
+    end
+  end
+end
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%Begin automatic run and graph saving
+disp(' ')
+disp('Test of function m-files follows.')
+fprintf('Press a key to continue ...'), pause, disp(' ')
+if strcmp(get(0,'diary'),'on'), diary off, diary on, end
+clc, hdibstst  %dibs, dibsimpr
+clc, hditstst  %dits
+clc, hdigntst  %digitnum
+clc, hechk, close %hechk
+clc, hechk(1); hechk(2); hechk(3); hechk(4); close %hechk
+if strcmp(get(0,'diary'),'on'), diary off, diary on, end
+if exist('corrtest.m')
+  clc, helcotst  %eliscost
+  clc, hortptst  %elis with orthopol
+  clc, helisfix  %fixing of parameters  
+end
+if strcmp(get(0,'diary'),'on'), diary off, diary on, end
+clc, expno=2; helcptst  %elis fits
+clc, helmltst  %elisml
+clc, heltptst  %elistper
+if ~Build_and_test&exist('idpoly')
+  dbclear if error %temporary bypass in test file
+  warning('''dbstop if error'' is temporarily switched off in testfd')
+end
+if strcmp(get(0,'diary'),'on'), diary off, diary on, end
+lasterrsave=lasterr; lasterr('')
+clc, he2thtst  %elis2tha, tha2elis
+clear lasterrsave
+if ~Build_and_test&exist('idpoly')
+  dbstop if error %temporary bypass in test file
+  warning(['''dbstop if error'' is switched back in testfd',...
+      ' (temporary bypass)'])
+end
+if strcmp(get(0,'diary'),'on'), diary off, diary on, end
+set(gcf,'name','Vector export/import')
+clc, heictest  %expcov, impcov, loadasc, fnamanal
+clc, heiftest  %expfou, impfou
+clc, heiptest  %exppar, imppar
+clc, heittest  %exptim, imptim
+clc, heivtest  %expvar, impvar
+clc, helttest  %run time of elis
+clc, hevcttst  %expvect
+clc, hecovtst  %fdcovpzp, stdpz
+clc, hconfetst %stdpz, plotelpz
+clc, hcorrtst  %corrtest, rdueelis
+clc, hgmeants  %gmean
+clc, hitctest  %iterctrl
+clc, hlqlgtst  %lin2qlog, log2qlog
+if strcmp(get(0,'diary'),'on'), diary off, diary on, end
+clc, hmlbstst  %mlbs
+clc, hmodfvts  %modifyfv
+clc, hmscltst  %msinclip, crestmin
+clc, hmsprtst  %msinprep %Manual, Reference, msinprep example
+clc, hoptxtst  %optexcit
+clc, hpairsts  %pairs
+clc, hpltfpts  %plotelpz, ploteltf
+clc, hrduetst  %rdueelis
+if strcmp(get(0,'diary'),'on'), diary off, diary on, end
+if exist('corrtest.m'), clc, clear N, hsimftst, end  %simfou with new calls
+clc, hstftest  %simtime, tim2fou
+%clc, htestfcf   %fcoeffs
+clc, hstfmtst  %stdtfm
+clc, hvarants  %varanal
+clc, hvatsobj  %varanal with objects
+clc, hywalkts  %ywalk;  Manual, Tutorial, Section 7.5
+if strcmp(get(0,'diary'),'on'), diary off, diary on, end
+%
+if exist('corrtest.m'), clc, helisnew, end  %new calls of elis
+clc, helrtest  %elis with report files
+clc, heltrtst  %elis with report files
+clc, htstc2arr %convert linear constraints
+if strcmp(skiphelistst,'n')
+  clelis=clock;
+  clc, helistst %elis, simfou
+  eltime=etime(clock,clelis);
+end
+if strcmp(get(0,'diary'),'on'), diary off, diary on, end
+%
+%IN THE TESTS BELOW, QUESTIONS HAVE TO BE ANSWERED.
+%if ~Build_and_test %Undetected error in B&T because of writing to file(s)
+  clc, helqtest, yesinpacceptdef=yiadsave;  %elisqa, yesinput
+%end
+clc, hldvtest, yesinpacceptdef=yiadsave;  %loadvar, savevar
+%
+%EXAMPLE SERIES: HFDEXAMP, HFDFLYER, HBLZOHFG, HESEMFIG
+if ~Build_and_test&exist('idpoly')
+  dbclear if error %temporary bypass in test file
+  warning('''dbstop if error'' is temporarily switched off in testfd')
+end
+lasterrsave=lasterr; lasterr('')
+clc, hfdexamp %Examples in help lines and in manual; figures
+if v6beta4 & (isempty(lasterr)|...
+      any(findstr(lower(lasterr),'reference to non-existent field ''covariancematrix'''))|...
+      any(findstr(lower(lasterr),'reference to non-existent field ''ts''')))
+  %This is a fix for the lasterr string generated in @idpoly/pvget
+  lasterr(lasterrsave)
+end
+clear lasterrsave
+if ~Build_and_test&exist('idpoly')
+  dbstop if error %temporary bypass in test file
+  warning(['''dbstop if error'' is switched back in testfd',...
+      ' (temporary bypass)'])
+end
+if strcmp(get(0,'diary'),'on'), diary off, diary on, end
+clc, hfdflyer %Plots for the toolbox flyer
+clc, hblzohfg %Plot illustration for BL and ZOH interpolation
+clc, hesemfig %Check seminar figures; calls hblzohfg
+if strcmp(get(0,'diary'),'on'), diary off, diary on, end
+%
+%end %if 1==2 %switch off tests
+cl1=clock;
+rcl1=etime(cl1,cl0);
+fprintf('TOTAL RUN TIME OF TESTS: %.1f minutes',rcl1/60)
+if strcmp(skiphelistst,'n')&exist('eltime')
+  fprintf(', helistst: %.1f minutes',eltime/60)
+end
+disp(' ')
+fprintf('Press a key to continue...'), pause, disp(' '), disp(' ')
+%
+echo on, clc
+if strcmp(get(0,'diary'),'on'), diary off, diary on, end
+if ~Build_and_test %Build and Test itself uses a wrapper for fdiddemo
+  %NOW THE DEMONSTRATION FILE (FDIDDEMO) WILL BE EXECUTED.
+  %It is reasonable to run and check each demo once on each platform, since
+  %this may be the first opportunity of future users to see the results of the
+  %routines.
+  echo off
+  fprintf('Press a key to continue...'), pause, disp(' ')
+  %clear functions
+  if strcmp(get(0,'diary'),'on'), diary off, diary on, end
+  clc, fdiddemono=1; bookdemono=1; lowpansw='n';
+  fdiddemo  %run demonstrations
+  %
+  if strcmp(get(0,'diary'),'on'), diary off, diary on, end
+  disp('FINALLY, 2 FURTHER DEMOS WILL BE INVOKED: TFDEMO AND PZDEMO')
+  if strcmp(get(0,'diary'),'on'), diary off, diary on, end
+  %
+  disp(' '), disp('tfdemo'), tfdemo
+  %
+  disp(' '), disp('pzdemo')
+  graphnumber_demo=0;
+  domain='s'; Pc=[]; algt='anal'; pzdemo
+  graphnumber_demo=1;
+  domain='s'; Pc=[]; dp=[]; algt='num';  pzdemo
+  graphnumber_demo=2;
+  domain='z'; Pc=[]; algt='anal'; pzdemo
+  graphnumber_demo=3;
+  domain='z'; Pc=[]; dp=[]; algt='num'; pzdemo
+  %
+  if strcmp(compcode(1:3),'SUN')|strcmp(compcode(1:3),'SOL')
+    [x,y]=unix('finger; ps -aux'); disp(y)
+  end
+end
+%
+if exist('hfdallsh')
+  hfdallsh
+  disp('Shows OK')  
+end %run all shows
+pause off
+clo1=clock;
+%Quick tests of objects
+if exist('fiddata'), testiddat, end
+if exist('fidmodel'), testfidm, end
+%
+%lasterr in not relevant - try's cause a nondangerous error
+%if ~isempty(lasterr), disp(['lasterr = ''',lasterr,'''']), end
+rcl1=rcl1+etime(clock,clo1);
+fprintf('TOTAL RUN TIME OF TESTS: %.1f minutes',rcl1/60)
+if strcmp(skiphelistst,'n')
+  fprintf(', helistst: %.1f minutes',eltime/60)
+end
+disp(' ')
+if ~Build_and_test %Build and Test itself uses a wrapper
+  cl2=clock;
+  rcl2=etime(cl2,cl1);
+  fprintf('TOTAL RUN TIME OF DEMONSTRATIONS: %.1f minutes.\n\n',rcl2/60)
+else
+  disp(' ')
+end
+%
+hyiadclr
+clear yesinpacceptdef expimpmessages pairsmessages
+clear global
+%
+pause on
+if strcmp(testfdmakediary,'y'), diary off, end
+clear testsavegraphst demosavegraphst
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+if Build_and_test
+  %Build and test finish
+  %Added so that Build and test could save files for this test
+  cd(hold_return_path)
+  %This removes the actual directory from the path, we probably added:
+  rmpath(hold_return_path);
+  try, close all force, catch, pause(1), close all force, end
+  testtime=etime(clock,testtime);
+  errortrap off
+  %
+  %New part
+  test = testinit('testfd','testfd');
+  eval('test = testpt(test,1,'''','''');')
+  %
+  %On the pc, there is no TerminalProtocol property for the root object.
+  %One of Istvan's files uses the eval-catch method to determine this.
+  %The problem is that it places a string into the lasterr value and thus
+  %produces a false failure for the test.
+  lasterr_str = lower(lasterr);
+  if any(findstr(lasterr_str,'invalid root property: ''terminalprotocol''')),
+    lasterr_str = '';
+  end
+  [test, breakflag] = feval('tvalchk',test,isempty(lasterr_str), 1);
+  eval('errstat{1,1} = test;')
+  test = tstrip(errstat);
+  %
+  %if isempty(lasterr)
+  %  test(1) = 0;               %test passed
+  %  test(2) = testtime;
+  %  message = ['*** ' mfilename 'passed ***'];
+  %else
+  %  test(1) = 1;
+  %  test(2) = testtime;
+  %  message = ['*** ' mfilename 'failed *** : ' lasterr];
+  %end
+else
+  %This is Istvan's test
+  dbclear if error %eliminate effect of 'dbstop if error'
+end
+close(gcf)
+clear global elis_max_iteration_number
+clear global msinclip_max_iteration_number
+clear global dibs_trialno
+%%%%%%%%%%%%%%%%%%%%%%%% End of testfd %%%%%%%%%%%%%%%%%%%%%%%%%%%%
